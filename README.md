@@ -20,11 +20,7 @@ An Android application that scans medicine labels, prescriptions, and drug packa
 | Image Cropper | android-image-cropper (vanniktech fork) v4.6 |
 | UI | Material Design 3 |
 
-## Screenshots
 
-| Home screen | Scanning |
-|---|---|
-| Empty state with scan prompt | Progress indicator while OCR runs |
 
 ## Getting Started
 
