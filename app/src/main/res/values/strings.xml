@@ -1,3 +1,9 @@
 <resources>
-    <string name="app_name">Camera</string>
+    <string name="app_name">Medicine Recognition System</string>
+    <string name="app_subtitle">Scan medicine labels and extract text instantly</string>
+    <string name="empty_title">No scan yet</string>
+    <string name="empty_body">Point your camera at a medicine label, prescription, or any text on a package and tap Scan below.</string>
+    <string name="btn_scan">Scan</string>
+    <string name="btn_retake">Scan Again</string>
+    <string name="btn_copy">Copy Text</string>
 </resources>
