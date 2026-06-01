@@ -9,8 +9,8 @@
 
 
     <ScrollView
-        android:layout_width="391dp"
-        android:layout_height="652dp"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:layout_above="@+id/linear_holder"
         android:layout_alignParentTop="true"
         android:layout_marginStart="8dp"

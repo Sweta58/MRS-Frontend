@@ -1,7 +1,7 @@
 package com.example.camera;
 
-import android.annotation.SuppressLint;
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -9,36 +9,37 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.ImageDecoder;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
+import android.util.Log;
 import android.util.SparseArray;
-//import android.view.Menu;
 import android.view.View;
-import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
-import com.theartofdev.edmodo.cropper.CropImage;
-import com.theartofdev.edmodo.cropper.CropImageView;
 
-//import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.canhub.cropper.CropImage;
+import com.canhub.cropper.CropImageView;
 import com.google.android.gms.vision.Frame;
 import com.google.android.gms.vision.text.TextBlock;
 import com.google.android.gms.vision.text.TextRecognizer;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends Activity {
+    private static final String TAG = "MainActivity";
+    private static final int REQUEST_PERMISSIONS_CODE = 100;
+
     Button button_capture, button_copy;
     TextView textview_data;
     Bitmap bitmap;
-    private static final int REQUEST_CAMERA_CODE = 100;
-
-
 
     @SuppressLint("MissingInflatedId")
     @Override
@@ -49,82 +50,98 @@ public class MainActivity extends Activity {
         button_copy = findViewById(R.id.button_copy);
         textview_data = findViewById(R.id.text_data);
 
+        requestNeededPermissions();
 
-        if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(MainActivity.this, new String[]{
-                    Manifest.permission.CAMERA
-            }, REQUEST_CAMERA_CODE);
-        }
+        button_capture.setOnClickListener(v ->
+                CropImage.activity().setGuidelines(CropImageView.Guidelines.ON).start(MainActivity.this));
 
-        button_capture.setOnClickListener(new View.OnClickListener() {
-            @Override
-
-
-            public void onClick(View v) {
-                CropImage.activity().setGuidelines(CropImageView.Guidelines.ON).start(MainActivity.this);
-                
-            }
-        });
-
-        button_copy.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String scanned_text = textview_data.getText().toString();
-                copyToClipboard(scanned_text);
-            }
-        });
-
+        button_copy.setOnClickListener(v ->
+                copyToClipboard(textview_data.getText().toString()));
     }
 
-
+    // Fix #2: request both CAMERA and READ_MEDIA_IMAGES (API 33+) at runtime
+    private void requestNeededPermissions() {
+        List<String> needed = new ArrayList<>();
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.CAMERA);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES)
+                        != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.READ_MEDIA_IMAGES);
+        }
+        if (!needed.isEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toArray(new String[0]), REQUEST_PERMISSIONS_CODE);
+        }
+    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE) {
-            CropImage.ActivityResult result = CropImage.getActivityResult(data);
             if (resultCode == RESULT_OK) {
-                Uri resultUri = result.getUri();
+                CropImage.ActivityResult result = CropImage.getActivityResult(data);
+                Uri resultUri = result.getUriContent();
                 try {
-                    bitmap = MediaStore.Images.Media.getBitmap(this.getContentResolver(), resultUri);
+                    Bitmap newBitmap = decodeBitmap(resultUri);
+                    // Fix #6: recycle previous bitmap before reassigning
+                    if (bitmap != null) {
+                        bitmap.recycle();
+                    }
+                    bitmap = newBitmap;
                     getTextFromImage(bitmap);
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    // Fix #5: proper logging instead of e.printStackTrace()
+                    Log.e(TAG, "Failed to decode bitmap", e);
+                    Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show();
                 }
-
+            } else if (resultCode != RESULT_CANCELED) {
+                // Fix #4: handle crop error (not just OK and silent cancel)
+                Toast.makeText(this, "Image crop failed", Toast.LENGTH_SHORT).show();
             }
-
         }
     }
 
-    private void getTextFromImage(Bitmap bitmap) {
-        TextRecognizer recognizer = new TextRecognizer.Builder(this).build();
-        if (recognizer.isOperational()) {
-            Toast.makeText(MainActivity.this, "Error Occurred!!!", Toast.LENGTH_SHORT).show();
+    // Fix #3: use ImageDecoder on API 28+; fall back to deprecated call on older devices
+    @SuppressWarnings("deprecation")
+    private Bitmap decodeBitmap(Uri uri) throws IOException {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return ImageDecoder.decodeBitmap(ImageDecoder.createSource(getContentResolver(), uri));
         } else {
-            Frame frame = new Frame.Builder().setBitmap(bitmap).build();
-            SparseArray<TextBlock> textBlockSparseArray = recognizer.detect(frame);
-
-
-                StringBuilder stringBuilder = new StringBuilder();
-                for (int i = 0; i < textBlockSparseArray.size(); i++) {
-                    TextBlock textBlock = textBlockSparseArray.valueAt(i);
-                    stringBuilder.append(textBlock.getValue());
-                    stringBuilder.append("\n");
-
-
-                }
-                textview_data.setText(stringBuilder.toString());
-                button_capture.setText("Retake");
-                button_copy.setVisibility(View.VISIBLE);
-            }
-        }
-
-        private void copyToClipboard(String text) {
-            ClipboardManager clipBoard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData clip = ClipData.newPlainText("Copied data", text);
-            clipBoard.setPrimaryClip(clip);
-            Toast.makeText(MainActivity.this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+            return android.provider.MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
         }
     }
 
+    @SuppressLint("SetTextI18n")
+    private void getTextFromImage(Bitmap bmp) {
+        TextRecognizer recognizer = new TextRecognizer.Builder(this).build();
+        // Fix #1: always release the recognizer to avoid native resource leak
+        try {
+            if (!recognizer.isOperational()) {
+                Toast.makeText(this, "Text recognizer not available", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Frame frame = new Frame.Builder().setBitmap(bmp).build();
+            SparseArray<TextBlock> blocks = recognizer.detect(frame);
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < blocks.size(); i++) {
+                sb.append(blocks.valueAt(i).getValue());
+                sb.append("\n");
+            }
+            textview_data.setText(sb.toString());
+            button_capture.setText("Retake");
+            button_copy.setVisibility(View.VISIBLE);
+        } finally {
+            recognizer.release();
+        }
+    }
+
+    private void copyToClipboard(String text) {
+        ClipboardManager clipBoard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = ClipData.newPlainText("Copied data", text);
+        clipBoard.setPrimaryClip(clip);
+        Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+    }
+}
