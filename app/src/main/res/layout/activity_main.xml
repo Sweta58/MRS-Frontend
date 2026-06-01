@@ -127,6 +127,32 @@
 
             </LinearLayout>
 
+            <!-- Loading state (shown during OCR) -->
+            <LinearLayout
+                android:id="@+id/layout_loading"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="340dp"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="32dp"
+                android:visibility="gone">
+
+                <ProgressBar
+                    android:layout_width="64dp"
+                    android:layout_height="64dp"
+                    android:indeterminateTint="@color/primary" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="Extracting text…"
+                    android:textColor="@color/on_surface_variant"
+                    android:textSize="15sp" />
+
+            </LinearLayout>
+
             <!-- OCR result text (shown after scan) -->
             <TextView
                 android:id="@+id/text_data"

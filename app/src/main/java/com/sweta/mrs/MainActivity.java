@@ -1,4 +1,4 @@
-package com.example.camera;
+package com.sweta.mrs;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
@@ -42,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
 
     Button button_capture, button_copy;
     TextView textview_data;
-    LinearLayout layout_empty;
+    LinearLayout layout_empty, layout_loading;
     Bitmap bitmap;
 
     private final ActivityResultLauncher<CropImageContractOptions> cropImageLauncher =
@@ -50,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
                 if (result.isSuccessful()) {
                     Uri resultUri = result.getUriContent();
                     if (resultUri == null) {
+                        showIdle();
                         Toast.makeText(this, "Could not retrieve cropped image", Toast.LENGTH_SHORT).show();
                         return;
                     }
@@ -60,10 +61,12 @@ public class MainActivity extends AppCompatActivity {
                         getTextFromImage(bitmap);
                     } catch (IOException e) {
                         Log.e(TAG, "Failed to decode bitmap", e);
+                        showIdle();
                         Toast.makeText(this, "Failed to load image", Toast.LENGTH_SHORT).show();
                     }
                 } else if (result.getError() != null) {
                     Log.e(TAG, "Crop error", result.getError());
+                    showIdle();
                     Toast.makeText(this, "Image crop failed", Toast.LENGTH_SHORT).show();
                 }
                 // else: user cancelled — do nothing
@@ -78,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
         button_copy = findViewById(R.id.button_copy);
         textview_data = findViewById(R.id.text_data);
         layout_empty = findViewById(R.id.layout_empty);
+        layout_loading = findViewById(R.id.layout_loading);
 
         requestNeededPermissions();
 
@@ -89,6 +93,19 @@ public class MainActivity extends AppCompatActivity {
 
         button_copy.setOnClickListener(v ->
                 copyToClipboard(textview_data.getText().toString()));
+    }
+
+    private void showLoading() {
+        layout_empty.setVisibility(View.GONE);
+        textview_data.setVisibility(View.GONE);
+        layout_loading.setVisibility(View.VISIBLE);
+        button_capture.setEnabled(false);
+    }
+
+    private void showIdle() {
+        layout_loading.setVisibility(View.GONE);
+        layout_empty.setVisibility(View.VISIBLE);
+        button_capture.setEnabled(true);
     }
 
     private void requestNeededPermissions() {
@@ -117,17 +134,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void getTextFromImage(Bitmap bmp) {
+        showLoading();
         TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
         InputImage image = InputImage.fromBitmap(bmp, 0);
 
         recognizer.process(image)
                 .addOnSuccessListener(visionText -> {
+                    layout_loading.setVisibility(View.GONE);
+                    button_capture.setEnabled(true);
                     String text = visionText.getText().trim();
                     if (text.isEmpty()) {
+                        showIdle();
                         Toast.makeText(this, "No text found in image", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    layout_empty.setVisibility(View.GONE);
                     textview_data.setVisibility(View.VISIBLE);
                     textview_data.setText(text);
                     button_capture.setText(R.string.btn_retake);
@@ -135,6 +155,7 @@ public class MainActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Text recognition failed", e);
+                    showIdle();
                     Toast.makeText(this, "Text recognition failed", Toast.LENGTH_SHORT).show();
                 })
                 .addOnCompleteListener(task -> recognizer.close());
